@@ -16,7 +16,7 @@ func main() {
 
     db.Exec("CREATE TABLE users(name TEXT PRIMARY KEY);")
     db.Exec("INSERT INTO users (name) VALUES ($1)", "a")
-    db.Exec("CREATE TABLE urls(uuid PRIMARY KEY DEFAULT gen_random_uuid(), identifier INT, owner TEXT references users (name), url TEXT)")
+    db.Exec("CREATE TABLE urls(uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(), identifier INT, owner TEXT references users (name), url TEXT)")
 }
 
 // TODO: MIGRATOR, for now we just will init a default table

@@ -24,7 +24,9 @@ func main() {
     r.GET("/ping", func(c *gin.Context) {
         ping(c, psql)
     })
-    r.POST("/shorten", shorten)
+    r.POST("/shorten", func(c *gin.Context) {
+        shorten(c, psql)
+    })
 
     r.Run(fmt.Sprintf(":%s", port))
 }
@@ -63,29 +65,34 @@ func ping(c *gin.Context, d *sql.DB) {
 
 /* POST /shorten
 * Body Shape ={"user": "username"(string|not required) "url": "urlToShorten"(string) }
+    users name
+    urls uuid identifier owner url
  */ 
-func shorten(c *gin.Context) {
+func shorten(c *gin.Context, d *sql.DB) {
     body := decodeBody(c)
     valid := validateBody([]string{"url"}, body);
     if !valid {
         c.JSON(http.StatusBadRequest, gin.H{
             "code": http.StatusBadRequest,
-            "message": "Bad request body; expected: { url: yourUrlToShorten(string) }", 
+            "message": "Bad request body; expected: { url: yourUrlToShorten(string), <optional>user: username(string) }", 
         })
         return
     }
 
-    /*
-    // Retrieve user or set anon
     user := "a"
     if v, ok := body["user"].(string); ok {
         user = string(v)
     }
-    */
-    // Get link id
+
+    lastIdentifier := query(d, "SELECT COALESCE(MAX(identifier), 0) as last FROM urls WHERE owner = $1", user)
+    _, err := d.Exec("INSERT INTO urls (identifier, owner, url) VALUES ($1, $2, $3)", lastIdentifier[0].(int64) + 1, user, body["url"])
+    if err != nil {
+        log.Fatalf("An error eccured while executing an insert into urls: %v", err)
+    }
 
     c.JSON(http.StatusOK, gin.H{
-        "valid": "body",
+        "code": http.StatusOK,
+        "query": lastIdentifier,
     })
 }
 
@@ -98,9 +105,9 @@ func db() *sql.DB {
     return db
 }
 
-func query(d *sql.DB, query string, args ...interface{}) []interface{} {
-    var res interface{}
-    var all []interface{}
+func query(d *sql.DB, query string, args ...any) []any {
+    var res any
+    var all []any
     rows, err := d.Query(query, args...)
     defer rows.Close()
     if err != nil {
